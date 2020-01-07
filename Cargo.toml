@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 rand = "0.7.2"
 text_io = "0.1.7"
+slice-deque = "0.3.0"

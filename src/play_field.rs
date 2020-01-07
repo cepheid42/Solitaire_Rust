@@ -4,6 +4,7 @@ use crate::cards::Suit::*;
 use std::collections::VecDeque;
 use std::iter::FromIterator;
 
+
 pub struct PlayField {
     first: Vec<&'static Card>,
     second: Vec<&'static Card>,
@@ -40,20 +41,20 @@ pub trait Field {
 
 }
 
-fn stackable(cur: &Card, other: &Card, fin: bool) -> bool {
-    let mut stack: bool = false;
+fn stackable(cur: &Card, other: &Card, stack: bool) -> bool {
+    let mut stackable: bool = false;
     if (other.value - cur.value) == 1 {
-        if fin && cur.suit == other.suit {
-            stack = true;
+        if stack && cur.suit == other.suit {
+            stackable = true;
         }
-        if !fin && (cur.suit == Spade || cur.suit == Club) && (other.suit == Heart || other.suit == Diamond) {
-            stack = true;
+        if !stack && (cur.suit == Spade || cur.suit == Club) && (other.suit == Heart || other.suit == Diamond) {
+            stackable = true;
         }
-        if !fin && (cur.suit == Heart || cur.suit == Diamond) && (other.suit == Spade || other.suit == Club) {
-            stack = true;
+        if !stack && (cur.suit == Heart || cur.suit == Diamond) && (other.suit == Spade || other.suit == Club) {
+            stackable = true;
         }
     }
-    stack
+    stackable
 }
 
 impl Field for PlayField {
@@ -94,30 +95,30 @@ impl Field for PlayField {
                           deck[26],
                           deck[27]],
 
-            drawpile: VecDeque::from(vec![deck[28],
-                                           deck[29],
-                                           deck[30],
-                                           deck[31],
-                                           deck[32],
-                                           deck[33],
-                                           deck[34],
-                                           deck[35],
-                                           deck[36],
-                                           deck[37],
-                                           deck[38],
-                                           deck[39],
-                                           deck[40],
-                                           deck[41],
-                                           deck[42],
-                                           deck[43],
-                                           deck[44],
-                                           deck[45],
-                                           deck[46],
-                                           deck[47],
-                                           deck[48],
-                                           deck[40],
-                                           deck[50],
-                                           deck[51]]),
+            drawpile: VecDeque::from_iter(vec![deck[28],
+                                                deck[29],
+                                                deck[30],
+                                                deck[31],
+                                                deck[32],
+                                                deck[33],
+                                                deck[34],
+                                                deck[35],
+                                                deck[36],
+                                                deck[37],
+                                                deck[38],
+                                                deck[39],
+                                                deck[40],
+                                                deck[41],
+                                                deck[42],
+                                                deck[43],
+                                                deck[44],
+                                                deck[45],
+                                                deck[46],
+                                                deck[47],
+                                                deck[48],
+                                                deck[40],
+                                                deck[50],
+                                                deck[51]]),
             stack1: vec![],
             stack2: vec![],
             stack3: vec![],
@@ -175,16 +176,12 @@ impl Field for PlayField {
 
     fn check_empty(&self, col: usize) -> bool {
         let c = self.get_col(col);
-        if c.is_empty() {
-            true
-        } else {
-            false
-        }
+        c.is_empty()
     }
 
     fn move_card(&mut self, fc: usize, ind: usize, tc: usize) {
         // Move from drawpile
-        if fc == 12 {
+        if fc == 18 {
             let card: &Card = self.pop_card(fc).unwrap();
             self.push_card(tc, card);
         } else {
@@ -247,63 +244,75 @@ impl Field for PlayField {
     fn valid_moves(&mut self) -> Vec<(usize, usize, usize)> {
         let mut move_list: Vec<(usize, usize, usize)> = Vec::new();
 
-        // Iterate over columns
-        for i in 1..=12 {
-            let col: &Vec<&'static Card> = self.get_col(i);
-            if col.is_empty() {
+        // Iterate over columns and stacks
+        for fc in 1..=11 {
+            let from_col: &Vec<&Card> = self.get_col(fc);
+            if from_col.is_empty() {
                 continue;
             }
-
-            // Iterate over column in reverse
-            let col_start: usize;
-            let col_end = col.len();
-
-            // Set draw pile limit
-            if i == 12 {
-                col_start = col.len() - 1;
-            } else {
-                col_start = 0;
-            }
-            // Iterate over cards in column
-            for j in (col_start..col_end).rev() {
-                let cur_card: &Card = col[j];
-                // Iterate over target columns, excluding draw pile
-                for ii in 1..=11 {
-                    if (i >= 8 && i <= 11) && (ii >=8 && i <= 11) {
-                        continue;
-                    }
-                    let target_col = self.get_col(ii);
-                    // Check if target is empty
+            // Iterate over cards in column/stack
+            for ci in (0..from_col.len()).rev() {
+                let cur_card: &Card = from_col[ci];
+                // Iterate over target columns/stacks
+                for tc in 1..=11 {
+                    let target_col = self.get_col(tc);
+                    // Check if target column is empty
                     if target_col.is_empty() {
-                        // If target is a stack, check if card is King or Ace
-                        if ii == 8 || ii == 9 || ii == 10 || ii == 11 {
-                            if cur_card.value == 13 {
-                                // Kings are not valid on empty stack
-                                continue;
-                            } else if cur_card.value == 1 {
-                                // Aces ARE valid on empty stack
-                                move_list.push((i, j, ii));
-                            }
+                        // Only Aces are valid on empty stacks
+                        if tc >= 8 && tc <= 11 && cur_card.value == 1 {
+                            move_list.push((fc, ci, tc));
+                        } else if tc < 8 && cur_card.value == 13 {
+                            // Otherwise TC is an empty column
+                            // Only King are valid in the case
+                            move_list.push((fc, ci, tc));
                         } else {
-                            // Otherwise is an empty column
-                            // King is valid in the case
-                            if cur_card.value == 13 {
-                                move_list.push((i, j, ii));
-                            }
+                            continue;
                         }
                     // Non-empty target column
                     } else {
                         let target_card: &Card = target_col.last().unwrap();
                         // Check stacks for stackability
-                        if ii == 8 || ii == 9 || ii == 10 || ii == 11 {
-                            if stackable(cur_card, target_card, true) {
-                                move_list.push((i, j, ii));
-                            }
-                        // Check stackability on all other columns
+                        if tc >= 8 && tc <= 11 && stackable(cur_card, target_card, true) {
+                            move_list.push((fc, ci, tc));
+                            // Check stackability on all other columns
                         } else {
                             if stackable(cur_card, target_card, false) {
-                                move_list.push((i, j, ii));
+                                move_list.push((fc, ci, tc));
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        let dp: &VecDeque<&Card> = self.get_drawpile();
+        if !dp.is_empty() {
+            let cur_card: &Card = dp[0];
+            // Iterate over target columns/stacks
+            for tc in 1..=11 {
+                let target_col = self.get_col(tc);
+                // Check if target column is empty
+                if target_col.is_empty() {
+                    // Only Aces are valid on empty stacks
+                    if tc >= 8 && tc <= 11 && cur_card.value == 1 {
+                        move_list.push((18, 0, tc));
+                    } else if tc < 8 && cur_card.value == 13 {
+                        // Otherwise TC is an empty column
+                        // Only King are valid in the case
+                        move_list.push((18, 0, tc));
+                    } else {
+                        continue;
+                    }
+                    // Non-empty target column
+                } else {
+                    let target_card: &Card = target_col.last().unwrap();
+                    // Check stacks for stackability
+                    if tc >= 8 && tc <= 11 && stackable(cur_card, target_card, true) {
+                        move_list.push((18, 0, tc));
+                        // Check stackability on all other columns
+                    } else {
+                        if stackable(cur_card, target_card, false) {
+                            move_list.push((18, 0, tc));
                         }
                     }
                 }
@@ -331,8 +340,8 @@ impl fmt::Debug for PlayField {
         for i in 1..=12 {
             // Prints first three cards in draw pile
             if i == 12 {
-                let col: &VecDeque<&Card>;
-                println!("{:?}", col[0:self.draw_size]);
+                let dp: &VecDeque<&Card> = self.get_drawpile();
+                println!("D: {:?}", &dp);
             // Prints Stacks normally
             } else if i >= 8 && i <= 11 {
                 let col: &Vec<&Card> = self.get_col(i);
@@ -342,7 +351,7 @@ impl fmt::Debug for PlayField {
                 let col: &Vec<&Card> = self.get_col(i);
                 println!("C{}: {:?}", i, col);
                 if i < 8 && i > 1 {
-                    println!("H{}: {:?}", i, self.get_col(i+11));
+                    println!("H{}: {:?}", i, self.get_col(i+10));
                 }
             }
         }

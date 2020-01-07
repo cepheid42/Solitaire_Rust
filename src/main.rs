@@ -45,15 +45,20 @@ fn main() {
         println!("{:?}", field);
         println!("Choose move:");
         for i in 1..=move_list.len() {
-            println!("{}: {:?}", i, move_list);
+            println!("{}: {:?}", i, move_list[i-1]);
         }
         println!("{}: Draw next 3", move_list.len() + 1);
         let input = read_move();
 
         if input == move_list.len() {
             // Drawpile
-        } else {
+            field.draw_cards();
+            continue;
+        } else if input < move_list.len() {
             field.move_card(move_list[input].0, move_list[input].1, move_list[input].2);
+        } else {
+            println!("Invalid move selected. Try Again!");
+            continue;
         }
 
 
@@ -69,7 +74,12 @@ fn main() {
     // -- Should be fixed.
 
     // Redo inputs so that drawpile can be scrolled through.
-    // -- Used VecDeque, make sure refactored everything correctly
-    // -- Update debug print to print slice
-    // -- rotate and pop from front, card moves and stuff need checking
+    // -- Used VecDeque (was SliceDeq but uses unsafe (was VecDeque but SliceDeq seemed nicer)), make sure refactored everything correctly
+    // -- Update debug print to print slice (VecDeque cannot be sliced, so just printing whole thing)
+    // -- Check draw_cards and moving from draw pile work correctly
+
+
+    // Still picking moves from stacks to other stacks,
+    // when moved from stack to another stack, pops card from draw pile to stack
+    // (auto draw from hidden col is working on stacks and shouldn't).
 }
