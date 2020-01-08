@@ -31,27 +31,33 @@ pub trait Field {
     fn new(deck: &mut Vec<&'static Card>, draw_size: usize) -> PlayField;
     fn pop_card(&mut self, col: usize) -> Option<&'static Card>;
     fn push_card(&mut self, col: usize, card: &'static Card);
-    fn check_empty(&self, col: usize) -> bool;
     fn move_card(&mut self, fc: usize, ind: usize, tc: usize);
     fn get_col(&self, col: usize) -> &Vec<&'static Card>;
     fn get_drawpile(&self) -> &VecDeque<&'static Card>;
     fn valid_moves(&mut self) -> Vec<(usize, usize, usize)>;
     fn draw_cards(&mut self);
     fn game_over(&self) -> bool;
-
+    fn check_empty(&self, tc: usize) -> bool;
 }
 
-fn stackable(cur: &Card, other: &Card, stack: bool) -> bool {
+fn stackable(cur: &Card, other: &Card, tc: usize) -> bool {
     let mut stackable: bool = false;
+    // Target is a stack
     if (other.value - cur.value) == 1 {
-        if stack && cur.suit == other.suit {
+        // Stacks
+        if tc >= 8 && cur.suit == other.suit {
             stackable = true;
         }
-        if !stack && (cur.suit == Spade || cur.suit == Club) && (other.suit == Heart || other.suit == Diamond) {
+        // Columns
+        else if tc < 8 && (cur.suit == Spade || cur.suit == Club) && (other.suit == Heart || other.suit == Diamond) {
             stackable = true;
         }
-        if !stack && (cur.suit == Heart || cur.suit == Diamond) && (other.suit == Spade || other.suit == Club) {
+        else if tc < 8 && (cur.suit == Heart || cur.suit == Diamond) && (other.suit == Spade || other.suit == Club) {
             stackable = true;
+        }
+        // Catch all
+        else {
+            stackable = false;
         }
     }
     stackable
@@ -174,26 +180,21 @@ impl Field for PlayField {
         }
     }
 
-    fn check_empty(&self, col: usize) -> bool {
-        let c = self.get_col(col);
-        c.is_empty()
-    }
-
-    fn move_card(&mut self, fc: usize, ind: usize, tc: usize) {
+    fn move_card(&mut self, fc: usize, ci: usize, tc: usize) {
         // Move from drawpile
         if fc == 18 {
             let card: &Card = self.pop_card(fc).unwrap();
             self.push_card(tc, card);
         } else {
             let fcol: &Vec<&Card> = self.get_col(fc);
-            let x = fcol.len();
+            let col_len: usize = fcol.len();
+
             // More than one card on the column
-            if x > 1 {
+            if col_len > 1 {
                 let mut temp: Vec<&Card> = Vec::new();
 
-                for i in (ind..=x-1).rev() {
+                for _i in (ci..=(col_len - 1)).rev() {
                     let card: &Card = self.pop_card(fc).unwrap();
-                    println!("moving {:?} from i={}", card, i);
                     temp.push(card);
                 }
                 while !temp.is_empty() {
@@ -206,10 +207,15 @@ impl Field for PlayField {
                 self.push_card(tc, card);
             }
 
-            // Pop from hidden col to fc
-            if (fc != 1 && fc <= 8) && self.check_empty(fc) {
-                let c: &Card = self.pop_card(fc + 10).unwrap();
-                self.push_card(fc, c);
+            // Pop from hidden col to empty fc
+            if (fc != 1 && fc < 8) && self.check_empty(fc) {
+                let hid_col: &Vec<&Card> = self.get_col(fc + 10);
+                if hid_col.is_empty() {
+                    return
+                } else {
+                    let c: &Card = self.pop_card(fc + 10).unwrap();
+                    self.push_card(fc, c);
+                }
             }
         }
     }
@@ -244,39 +250,77 @@ impl Field for PlayField {
     fn valid_moves(&mut self) -> Vec<(usize, usize, usize)> {
         let mut move_list: Vec<(usize, usize, usize)> = Vec::new();
 
-        // Iterate over columns and stacks
-        for fc in 1..=11 {
+        // Iterate over columns
+        for fc in 1..=7 {
             let from_col: &Vec<&Card> = self.get_col(fc);
             if from_col.is_empty() {
                 continue;
             }
-            // Iterate over cards in column/stack
-            for ci in (0..from_col.len()).rev() {
-                let cur_card: &Card = from_col[ci];
-                // Iterate over target columns/stacks
-                for tc in 1..=11 {
-                    let target_col = self.get_col(tc);
-                    // Check if target column is empty
+            // Iterate over columns and stacks
+            for tc in 1..=11 {
+                // Skip moves to self
+                if fc == tc {
+                    continue;
+                }
+                let target_col: &Vec<&Card> = self.get_col(tc);
+                // Iterate over cards in column
+                for ci in (0..from_col.len()).rev() {
+                    let cur_card: &Card = from_col[ci];
+
                     if target_col.is_empty() {
+                        // Only Kings are valid on empty columns
+                        if tc <= 7 && cur_card.value == 13 {
+                            if !move_list.contains(&(fc, ci, tc)) {
+                                move_list.push((fc, ci, tc));
+                            }
+                        }
                         // Only Aces are valid on empty stacks
-                        if tc >= 8 && tc <= 11 && cur_card.value == 1 {
-                            move_list.push((fc, ci, tc));
-                        } else if tc < 8 && cur_card.value == 13 {
-                            // Otherwise TC is an empty column
-                            // Only King are valid in the case
-                            move_list.push((fc, ci, tc));
-                        } else {
+                        else if tc >= 8 && tc <= 11 && cur_card.value == 1 {
+                            if !move_list.contains(&(fc, ci, tc)) {
+                                move_list.push((fc, ci, tc));
+                            }
+                        }
+                        else {
                             continue;
                         }
-                    // Non-empty target column
+                    // Non-empty column/stack
                     } else {
                         let target_card: &Card = target_col.last().unwrap();
-                        // Check stacks for stackability
-                        if tc >= 8 && tc <= 11 && stackable(cur_card, target_card, true) {
+                        if stackable(cur_card, target_card, tc) {
+                            if !move_list.contains(&(fc, ci, tc)) {
+                                move_list.push((fc, ci, tc));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Iterate over Stacks
+            for fc in 8..=11 {
+                let from_col: &Vec<&Card> = self.get_col(fc);
+                if from_col.is_empty() {
+                    continue;
+                }
+                for tc in 1..=7 {
+                    let ci = from_col.len() - 1;
+                    let cur_card: &Card = from_col[ci];
+                    // Ignores Aces and Twos as valid moves from stacks
+                    // This should help limit infinite move loops
+                    // because these moves have no strategic value in the game
+                    if cur_card.value == 1 || cur_card.value == 2 {
+                        break;
+                    }
+                    let target_col: &Vec<&Card> = self.get_col(tc);
+                    // Only Kings are valid on empty Columns
+                    if target_col.is_empty() && cur_card.value == 13 {
+                        if !move_list.contains(&(fc, ci, tc)) {
                             move_list.push((fc, ci, tc));
-                            // Check stackability on all other columns
-                        } else {
-                            if stackable(cur_card, target_card, false) {
+                        }
+                    }
+                    else {
+                        let target_card: &Card = target_col.last().unwrap();
+                        if stackable(cur_card, target_card, tc) {
+                            if !move_list.contains(&(fc, ci, tc)) {
                                 move_list.push((fc, ci, tc));
                             }
                         }
@@ -294,24 +338,25 @@ impl Field for PlayField {
                 // Check if target column is empty
                 if target_col.is_empty() {
                     // Only Aces are valid on empty stacks
-                    if tc >= 8 && tc <= 11 && cur_card.value == 1 {
-                        move_list.push((18, 0, tc));
-                    } else if tc < 8 && cur_card.value == 13 {
-                        // Otherwise TC is an empty column
-                        // Only King are valid in the case
-                        move_list.push((18, 0, tc));
-                    } else {
+                    if tc >= 8 && cur_card.value == 1 {
+                        if !move_list.contains(&(18, 0, tc)) {
+                            move_list.push((18, 0, tc));
+                        }
+                    }
+                    else if tc < 8 && cur_card.value == 13 {
+                        // Only Kings are valid in the case
+                        if !move_list.contains(&(18, 0, tc)) {
+                            move_list.push((18, 0, tc));
+                        }
+                    }
+                    else {
                         continue;
                     }
-                    // Non-empty target column
+                // Non-empty target column
                 } else {
                     let target_card: &Card = target_col.last().unwrap();
-                    // Check stacks for stackability
-                    if tc >= 8 && tc <= 11 && stackable(cur_card, target_card, true) {
-                        move_list.push((18, 0, tc));
-                        // Check stackability on all other columns
-                    } else {
-                        if stackable(cur_card, target_card, false) {
+                    if stackable(cur_card, target_card, tc) {
+                        if !move_list.contains(&(18, 0, tc)) {
                             move_list.push((18, 0, tc));
                         }
                     }
@@ -333,6 +378,11 @@ impl Field for PlayField {
             false
         }
     }
+
+    fn check_empty(&self, tc: usize) -> bool {
+        let from_col: &Vec<&Card> = self.get_col(tc);
+        from_col.is_empty()
+    }
 }
 
 impl fmt::Debug for PlayField {
@@ -341,7 +391,7 @@ impl fmt::Debug for PlayField {
             // Prints first three cards in draw pile
             if i == 12 {
                 let dp: &VecDeque<&Card> = self.get_drawpile();
-                println!("D: {:?}", &dp);
+                println!("D: {:?}, {:?}, {:?}", &dp[0], &dp[1], &dp[2]);
             // Prints Stacks normally
             } else if i >= 8 && i <= 11 {
                 let col: &Vec<&Card> = self.get_col(i);
@@ -349,7 +399,7 @@ impl fmt::Debug for PlayField {
             // Print Column and Hidden stacks
             } else {
                 let col: &Vec<&Card> = self.get_col(i);
-                println!("C{}: {:?}", i, col);
+                println!("\nC{}: {:?}", i, col);
                 if i < 8 && i > 1 {
                     println!("H{}: {:?}", i, self.get_col(i+10));
                 }

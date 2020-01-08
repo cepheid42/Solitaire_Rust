@@ -1,6 +1,5 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use std::io;
 
 mod cards;
 mod play_field;
@@ -11,19 +10,12 @@ use cards::*;
 
 fn read_move() -> usize {
     println!("Input number");
+    let cin = std::io::stdin();
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input);
+    cin.read_line(&mut input).unwrap();
 
     let value: usize = input.trim().parse().unwrap();
     value - 1
-}
-
-fn is_valid_move(m: (usize, usize, usize), move_list: Vec<(usize, usize, usize)>) -> bool {
-    if move_list.contains(&m){
-        true
-    } else {
-        false
-    }
 }
 
 fn main() {
@@ -66,20 +58,9 @@ fn main() {
     // Make game over smarter (so it doesn't keep moving same cards back and forth).
     // This may require BFS in order to determine if making a move leads to more moves
     // or just leads to back and forth.
-    // -- Move from one stack to another are not put in valid move list
 
-    // Moved from drawpile to C1 automatically, think I fixed it.
+    // Look into generics for simplifying drawpile/column code (Generic for Vec and VecDeque)
 
-    // Move from index other than 0 doesn't work properly, moves card(s) below target card.
-    // -- Should be fixed.
-
-    // Redo inputs so that drawpile can be scrolled through.
-    // -- Used VecDeque (was SliceDeq but uses unsafe (was VecDeque but SliceDeq seemed nicer)), make sure refactored everything correctly
-    // -- Update debug print to print slice (VecDeque cannot be sliced, so just printing whole thing)
-    // -- Check draw_cards and moving from draw pile work correctly
-
-
-    // Still picking moves from stacks to other stacks,
-    // when moved from stack to another stack, pops card from draw pile to stack
-    // (auto draw from hidden col is working on stacks and shouldn't).
+    // Need to beef up detection of looping of states, otherwise automation will loop infinite
+    // Example, if moving
 }
